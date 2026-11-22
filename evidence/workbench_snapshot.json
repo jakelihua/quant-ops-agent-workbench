@@ -90,7 +90,7 @@
         "category": "EXECUTION_PROTOCOL",
         "severity": "HIGH",
         "title": "撤单竞态仓位差异 (+20 股漏记)",
-        "summary": "100 股买单：40 股在发撤单前成交，20 股在撤单请求与确认返回之间成交，40 股成功撤单。成交回报合计 60 股，本地缓存仅记 40 股，少记 20 股。",
+        "summary": "100 股买单：EX-1001 撤前成交 40 股，EX-1002 撤单确认前成交 20 股（重复回报已幂等忽略 1 条），撤掉 40 股。交易所回报合计 60 股，本地仅记 40 股，漏记回报 EX-1002（+20 股）。",
         "metrics": {
           "order_qty": 100,
           "filled_before_cancel": 40,
@@ -98,13 +98,17 @@
           "canceled_qty": 40,
           "exchange_filled_qty": 60,
           "local_recorded_qty": 40,
+          "missing_exec_ids": [
+            "EX-1002"
+          ],
+          "duplicate_events_ignored": 1,
           "position_drift_shares": 20
         },
         "recommended_action": "SYNC_EXCHANGE_POSITION",
         "requires_write_privilege": true
       },
       "runbook_id": "RB-EXEC-309",
-      "retained_log_chars": 257,
+      "retained_log_chars": 313,
       "routing_confidence": 0.96,
       "root_cause_analysis": "撤单请求发出与撤单确认返回之间发生飞行中成交，导致本地缓存少记仓位。",
       "proposed_steps": [

@@ -110,17 +110,38 @@ def audit_market_making_inventory() -> AuditAlert:
 
 
 def audit_cancel_race() -> AuditAlert:
-    """Detect in-flight fills during cancel race and compute exact position drift."""
+    """Detect in-flight fills during cancel race with ExecID idempotent replay."""
     order_qty = 100
-    filled_before_cancel = 40
-    filled_during_cancel_race = 20
     canceled_qty = 40
-    expected_filled_by_naive_client = 40
-    actual_filled_on_exchange = filled_before_cancel + filled_during_cancel_race
-    position_drift = actual_filled_on_exchange - expected_filled_by_naive_client
+
+    # Synthetic exchange execution reports (includes a duplicate EX-1002 replay packet)
+    exchange_events = [
+        {"exec_id": "EX-1001", "qty": 40, "phase": "before_cancel"},
+        {"exec_id": "EX-1002", "qty": 20, "phase": "in_flight_cancel_race"},
+        {"exec_id": "EX-1002", "qty": 20, "phase": "duplicate_replay"},
+    ]
+    local_recorded_exec_ids = {"EX-1001"}
+
+    seen_exec_ids: Dict[str, int] = {}
+    duplicate_events_ignored = 0
+    for ev in exchange_events:
+        eid = ev["exec_id"]
+        if eid in seen_exec_ids:
+            duplicate_events_ignored += 1
+            continue
+        seen_exec_ids[eid] = ev["qty"]
+
+    filled_before_cancel = seen_exec_ids["EX-1001"]
+    filled_during_cancel_race = seen_exec_ids["EX-1002"]
+    actual_filled_on_exchange = sum(seen_exec_ids.values())
+    local_recorded_qty = sum(qty for eid, qty in seen_exec_ids.items() if eid in local_recorded_exec_ids)
+    missing_exec_ids = sorted(set(seen_exec_ids.keys()) - local_recorded_exec_ids)
+    position_drift = actual_filled_on_exchange - local_recorded_qty
 
     assert filled_before_cancel + filled_during_cancel_race + canceled_qty == order_qty
     assert actual_filled_on_exchange == 60
+    assert duplicate_events_ignored == 1
+    assert missing_exec_ids == ["EX-1002"]
     assert position_drift == 20
 
     return AuditAlert(
@@ -129,8 +150,8 @@ def audit_cancel_race() -> AuditAlert:
         severity="HIGH",
         title="撤单竞态仓位差异 (+20 股漏记)",
         summary=(
-            "100 股买单：40 股在发撤单前成交，20 股在撤单请求与确认返回之间成交，"
-            "40 股成功撤单。成交回报合计 60 股，本地缓存仅记 40 股，少记 20 股。"
+            "100 股买单：EX-1001 撤前成交 40 股，EX-1002 撤单确认前成交 20 股（重复回报已幂等忽略 1 条），"
+            "撤掉 40 股。交易所回报合计 60 股，本地仅记 40 股，漏记回报 EX-1002（+20 股）。"
         ),
         metrics={
             "order_qty": order_qty,
@@ -138,7 +159,9 @@ def audit_cancel_race() -> AuditAlert:
             "in_flight_race_fill": filled_during_cancel_race,
             "canceled_qty": canceled_qty,
             "exchange_filled_qty": actual_filled_on_exchange,
-            "local_recorded_qty": expected_filled_by_naive_client,
+            "local_recorded_qty": local_recorded_qty,
+            "missing_exec_ids": missing_exec_ids,
+            "duplicate_events_ignored": duplicate_events_ignored,
             "position_drift_shares": position_drift,
         },
         recommended_action="SYNC_EXCHANGE_POSITION",

@@ -184,11 +184,11 @@
           ticket_id: "TKT-003",
           status: "PENDING_APPROVAL",
           runbook_id: "RB-EXEC-309",
-          retained_log_chars: 257,
+          retained_log_chars: 313,
           routing_confidence: 0.96,
           root_cause_analysis: "撤单请求发出与撤单确认返回之间发生飞行中成交，导致本地缓存少记仓位。",
           proposed_steps: ["以交易所成交回报为准核对总成交量（60 股 vs 本地 40 股）", "确认漏记的 20 股回报序号并做幂等重放", "生成仓位修正建议单，送人工复核后再同步 OMS 仓位"],
-          alert: { alert_id: "ALT-2026-003", severity: "HIGH", title: "撤单竞态仓位差异 (+20 股漏记)", summary: "100 股买单：40 股在发撤单前成交，20 股在撤单请求与确认返回之间成交，40 股成功撤单。成交回报合计 60 股，本地缓存仅记 40 股，少记 20 股。", recommended_action: "SYNC_EXCHANGE_POSITION" },
+          alert: { alert_id: "ALT-2026-003", severity: "HIGH", title: "撤单竞态仓位差异 (+20 股漏记)", summary: "100 股买单：EX-1001 撤前成交 40 股，EX-1002 撤单确认前成交 20 股（重复回报已幂等忽略 1 条），撤掉 40 股。交易所回报合计 60 股，本地仅记 40 股，漏记回报 EX-1002（+20 股）。", recommended_action: "SYNC_EXCHANGE_POSITION" },
           guardrail: { allowed_auto_execute: false, policy_triggered: "ROUTE_WRITE_TO_HUMAN_REVIEW", reason: "建议动作 `SYNC_EXCHANGE_POSITION` 涉及账本或仓位变更，原型将其送入人工复核队列，不执行自动写入。" }
         },
         {

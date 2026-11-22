@@ -55,6 +55,8 @@ def test_cancel_race_rule():
     assert alert.metrics["canceled_qty"] == 40
     assert alert.metrics["exchange_filled_qty"] == 60
     assert alert.metrics["local_recorded_qty"] == 40
+    assert alert.metrics["missing_exec_ids"] == ["EX-1002"]
+    assert alert.metrics["duplicate_events_ignored"] == 1
     assert alert.metrics["position_drift_shares"] == 20
 
 
