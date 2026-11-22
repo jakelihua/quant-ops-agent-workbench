@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quant Ops Agent Workbench · 交易支持智能化审单台</title>
+  <title>Quant Ops Agent Workbench · 交易支持工单复核台（合成原型）</title>
   <style>
     :root {
       --bg: #f6f7f5;
@@ -35,7 +35,7 @@
       gap: 12px;
     }
     header h1 { margin: 0; font-size: 20px; letter-spacing: 0.3px; }
-    header .sub { font-size: 13px; opacity: 0.85; }
+    header .sub { font-size: 13px; opacity: 0.88; margin-top: 4px; }
     .badge-bar { display: flex; gap: 10px; flex-wrap: wrap; }
     .pill {
       background: rgba(255,255,255,0.14);
@@ -45,6 +45,15 @@
       font-weight: 600;
     }
     main { max-width: 1120px; margin: 24px auto; padding: 0 20px 48px; }
+    .notice {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -123,88 +132,92 @@
     }
     .btn-approve { background: var(--accent); color: #fff; }
     .btn-reject { background: #e5e7eb; color: #1f2937; }
-    button:disabled { opacity: 0.45; cursor: not-allowed; }
     code { background: #eef2ef; padding: 2px 5px; border-radius: 4px; font-size: 12px; }
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>Quant Ops Agent Workbench · 交易支持智能化审单台</h1>
-      <div class="sub">Deterministic Audit Engine + Agent Harness + Financial Guardrails + Human-in-the-Loop (HITL)</div>
+      <h1>Quant Ops Agent Workbench · 交易支持工单复核台</h1>
+      <div class="sub">合成数据演示原型：规则复算差异 · 预设 Runbook 路由 · 人工审批状态流转（未接入大模型与实盘执行器）</div>
     </div>
     <div class="badge-bar">
-      <span class="pill">Autonomous Writes: 0</span>
-      <span class="pill">Guardrails: ACTIVE</span>
-      <span class="pill">Synthetic Deterministic Demo</span>
+      <span class="pill" id="data-source-pill">数据源加载中...</span>
+      <span class="pill">演示状态 · 刷新恢复初始</span>
     </div>
   </header>
   <main>
+    <div class="notice">
+      说明：本页面仅在浏览器内存中演示工单状态流转（刷新页面即恢复初始状态），未连接后端数据库或实盘交易接口。使用 <code>python3 -m http.server 8000 --bind 127.0.0.1</code> 后访问 <code>/web/index.html</code> 可直接读取刚生成的 <code>evidence/workbench_snapshot.json</code>。
+    </div>
     <div class="kpi-grid" id="kpis"></div>
     <div id="tickets"></div>
   </main>
 
   <script>
     const FALLBACK_SNAPSHOT = {
-      summary: { total_alerts: 4, guardrail_blocked_write_actions: 3, auto_archived_read_only: 1, autonomous_write_mutations: 0 },
+      summary: { total_alerts: 4, routed_to_human_review: 3, auto_archived_read_only: 1, live_write_executed: 0 },
       tickets: [
         {
           ticket_id: "TKT-001",
           status: "PENDING_APPROVAL",
           runbook_id: "RB-FUT-101",
-          compressed_context_tokens: 138,
+          retained_log_chars: 223,
           routing_confidence: 0.96,
-          root_cause_analysis: "近远月主力合约切换时未按独立合约逐日盯市，跨期价差被误计为交易收益。",
-          proposed_steps: ["锁定换月日近远月结算价与跨期价差（6 点）", "切换账本核算模式为逐合约独立持仓 + 逐日盯市", "生成调整分录提交清算与风控复核，严禁自动覆盖历史成交库"],
-          alert: { alert_id: "ALT-2026-001", severity: "HIGH", title: "期货换月账面虚增告警 (+120.00 元)", summary: "回测/报表层将近远月合约直接拼接计算收益 280.00 元，实际逐日毛利仅 160.00 元（扣费后 148.00 元），差额 120.00 元来自跨期价差。", recommended_action: "ADJUST_RECON_LEDGER" },
-          guardrail: { allowed_auto_execute: false, policy_triggered: "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE", reason: "动作 ADJUST_RECON_LEDGER 涉及资金/账本变更，金融护栏强制拦截，必须进入人工审批队列（HITL）。" }
+          root_cause_analysis: "近远月合约切换时未按独立合约逐日盯市，跨期价差被误计入账面收益。",
+          proposed_steps: ["核对换月日近远月结算价与跨期价差（roll_gap_points）", "按实际持有合约逐日盯市重算损益", "生成调整建议单送人工复核，不直接修改历史成交库"],
+          alert: { alert_id: "ALT-2026-001", severity: "HIGH", title: "期货换月账面差异 (+120.00 元)", summary: "近远月合约直接拼接计算收益 280.00 元，逐日盯市实际毛利 160.00 元（扣费 12.00 元后净利 148.00 元），差额 120.00 元来自换月日 6 点跨期价差。", recommended_action: "ADJUST_RECON_LEDGER" },
+          guardrail: { allowed_auto_execute: false, policy_triggered: "ROUTE_WRITE_TO_HUMAN_REVIEW", reason: "建议动作 `ADJUST_RECON_LEDGER` 涉及账本或仓位变更，原型将其送入人工复核队列，不执行自动写入。" }
         },
         {
           ticket_id: "TKT-002",
           status: "PENDING_APPROVAL",
           runbook_id: "RB-MM-204",
-          compressed_context_tokens: 142,
+          retained_log_chars: 197,
           routing_confidence: 0.96,
-          root_cause_analysis: "单边趋势行情引发逆向选择，做市买单被动吃满导致库存敞口超限，中价漂移吞噬价差收益。",
-          proposed_steps: ["拆分账目为 Spread Capture (+3.00) 与 Mid Drift (-5.80)", "检查当前 100 股库存敞口是否触发策略风控阈值", "生成对冲或降仓建议单，交由值班交易员一键审批执行"],
-          alert: { alert_id: "ALT-2026-002", severity: "CRITICAL", title: "做市库存敞口超限与中价漂移亏损 (-3.10 元)", summary: "4 笔成交捕获价差 +3.00 元，但期末滞留 100 股多头库存，中价漂移拖累 -5.80 元、手续费 -0.30 元，最终净亏 -3.10 元。", recommended_action: "AUTO_HEDGE_INVENTORY" },
-          guardrail: { allowed_auto_execute: false, policy_triggered: "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE", reason: "动作 AUTO_HEDGE_INVENTORY 涉及实盘仓位变更，金融护栏强制拦截，必须进入人工审批队列（HITL）。" }
+          root_cause_analysis: "期末留存单边多头库存，收盘中价下跌拖累整体损益，掩盖了价差收益。",
+          proposed_steps: ["拆解账目为价差捕获（+3.00）、中价变动（-5.80）与费用（-0.30）", "核对期末 100 股库存敞口与当日风控限额", "生成降仓或对冲建议单，交由值班人员复核决定"],
+          alert: { alert_id: "ALT-2026-002", severity: "CRITICAL", title: "做市库存与损益分解 (-3.10 元)", summary: "策略 4 笔成交捕获价差 +3.00 元，期末持有 100 股多头库存，市场中价变动拖累 -5.80 元、手续费 -0.30 元，净损益 -3.10 元。", recommended_action: "AUTO_HEDGE_INVENTORY" },
+          guardrail: { allowed_auto_execute: false, policy_triggered: "ROUTE_WRITE_TO_HUMAN_REVIEW", reason: "建议动作 `AUTO_HEDGE_INVENTORY` 涉及账本或仓位变更，原型将其送入人工复核队列，不执行自动写入。" }
         },
         {
           ticket_id: "TKT-003",
           status: "PENDING_APPROVAL",
           runbook_id: "RB-EXEC-309",
-          compressed_context_tokens: 146,
+          retained_log_chars: 257,
           routing_confidence: 0.96,
-          root_cause_analysis: "撤单指令网络传输窗口内与交易所撮合引擎发生竞态，产生飞行中成交（In-Flight Fill）。",
-          proposed_steps: ["以交易所回报序列号（ExecID）为唯一真相源", "执行日志幂等重放，确保二次回放新增事件为 0", "同步修正本地 OMS 仓位缓存并通知风控模块重算敞口"],
-          alert: { alert_id: "ALT-2026-003", severity: "HIGH", title: "撤单竞态引发仓位漂移 (+20 股飞行中成交)", summary: "100 股买单撤单期间：40 股发撤单前成交，20 股在撤单请求与确认之间成交，40 股撤单。执行差额 IS 达 70 bp。", recommended_action: "SYNC_EXCHANGE_POSITION" },
-          guardrail: { allowed_auto_execute: false, policy_triggered: "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE", reason: "动作 SYNC_EXCHANGE_POSITION 涉及本地仓位状态修改，金融护栏强制拦截，必须进入人工审批队列（HITL）。" }
+          root_cause_analysis: "撤单请求发出与撤单确认返回之间发生飞行中成交，导致本地缓存少记仓位。",
+          proposed_steps: ["以交易所成交回报为准核对总成交量（60 股 vs 本地 40 股）", "确认漏记的 20 股回报序号并做幂等重放", "生成仓位修正建议单，送人工复核后再同步 OMS 仓位"],
+          alert: { alert_id: "ALT-2026-003", severity: "HIGH", title: "撤单竞态仓位差异 (+20 股漏记)", summary: "100 股买单：40 股在发撤单前成交，20 股在撤单请求与确认返回之间成交，40 股成功撤单。成交回报合计 60 股，本地缓存仅记 40 股，少记 20 股。", recommended_action: "SYNC_EXCHANGE_POSITION" },
+          guardrail: { allowed_auto_execute: false, policy_triggered: "ROUTE_WRITE_TO_HUMAN_REVIEW", reason: "建议动作 `SYNC_EXCHANGE_POSITION` 涉及账本或仓位变更，原型将其送入人工复核队列，不执行自动写入。" }
         },
         {
           ticket_id: "TKT-004",
           status: "AUTO_ARCHIVED",
           runbook_id: "RB-DATA-402",
-          compressed_context_tokens: 120,
+          retained_log_chars: 170,
           routing_confidence: 0.96,
-          root_cause_analysis: "历史数据修订场景下的双时间戳（Effective Date / As-Of Date）隔离核验。",
-          proposed_steps: ["确认查询引擎严格按 as_of_date 过滤历史快照", "归档本次合规核验记录至审计日志，无需人工介入写操作"],
-          alert: { alert_id: "ALT-2026-004", severity: "MEDIUM", title: "PIT 财报修订时间穿越防线核验通过", summary: "04-10 初发 100、04-15 修订 80。时间点快照查询在 09/11/16 日严格返回 None -> 100 -> 80。", recommended_action: "LOG_AUDIT_PASS" },
-          guardrail: { allowed_auto_execute: true, policy_triggered: "READ_ONLY_AUDIT_PASS", reason: "只读合规核验且置信度达标，允许自动归档审计记录。" }
+          root_cause_analysis: "历史数据修订场景下的双时间戳（Effective Date / As-Of Date）快照核验。",
+          proposed_steps: ["确认查询按 as_of_date 过滤历史快照", "归档本次只读核验记录至审计日志"],
+          alert: { alert_id: "ALT-2026-004", severity: "MEDIUM", title: "PIT 财报修订快照核验通过", summary: "指标于 04-10 初发 100、04-15 修订为 80。时间点查询在 09/11/16 日严格返回 None -> 100 -> 80，未发生未来数据泄露。", recommended_action: "LOG_AUDIT_PASS" },
+          guardrail: { allowed_auto_execute: true, policy_triggered: "READ_ONLY_AUDIT_PASS", reason: "只读核验且命中预设类别，自动归档审计记录。" }
         }
       ]
     };
 
     let state = JSON.parse(JSON.stringify(FALLBACK_SNAPSHOT));
+    let dataSource = "内置样例（直接双击打开）";
 
     function render() {
+      document.getElementById("data-source-pill").textContent = "数据源：" + dataSource;
       const pendingCount = state.tickets.filter(t => t.status === "PENDING_APPROVAL").length;
       const approvedCount = state.tickets.filter(t => t.status === "APPROVED").length;
+      const rejectedCount = state.tickets.filter(t => t.status === "REJECTED").length;
       document.getElementById("kpis").innerHTML = `
-        <div class="kpi"><div class="label">总审计工单</div><div class="val">${state.tickets.length}</div></div>
-        <div class="kpi"><div class="label">护栏拦截待审批 (HITL)</div><div class="val">${pendingCount}</div></div>
-        <div class="kpi"><div class="label">人工已批准流转</div><div class="val">${approvedCount}</div></div>
-        <div class="kpi"><div class="label">大模型越权写操作</div><div class="val">0</div></div>
+        <div class="kpi"><div class="label">样例工单总数</div><div class="val">${state.tickets.length}</div></div>
+        <div class="kpi"><div class="label">待人工复核</div><div class="val">${pendingCount}</div></div>
+        <div class="kpi"><div class="label">已批准 / 已驳回</div><div class="val">${approvedCount} / ${rejectedCount}</div></div>
+        <div class="kpi"><div class="label">实盘业务写入</div><div class="val">0</div></div>
       `;
       document.getElementById("tickets").innerHTML = state.tickets.map((t, idx) => `
         <div class="ticket">
@@ -218,36 +231,41 @@
           <div style="font-size:14px;color:#334155;">${t.alert.summary}</div>
           <div class="grid-2">
             <div class="panel">
-              <h4>Agent Harness 归因分析（Runbook: <code>${t.runbook_id}</code>）</h4>
+              <h4>预设 Runbook 匹配（<code>${t.runbook_id}</code>）</h4>
               <div>${t.root_cause_analysis}</div>
-              <div style="margin-top:6px;color:#64748b;">上下文压缩: <b>${t.compressed_context_tokens} tokens</b> · 路由置信度: <b>${(t.routing_confidence*100).toFixed(0)}%</b></div>
+              <div style="margin-top:6px;color:#64748b;">去重截断后日志：<b>${t.retained_log_chars} 字符</b> · 预设路由分：<b>${t.routing_confidence.toFixed(2)}</b></div>
             </div>
             <div class="panel">
-              <h4>建议处置 SOP（建议动作: <code>${t.alert.recommended_action}</code>）</h4>
+              <h4>建议处置步骤（动作：<code>${t.alert.recommended_action}</code>）</h4>
               <ol style="margin:0;padding-left:18px;">${t.proposed_steps.map(s => `<li>${s}</li>`).join("")}</ol>
             </div>
           </div>
           <div class="guardrail-box ${t.guardrail.allowed_auto_execute ? "ok" : ""}">
-            <strong>金融护栏 [${t.guardrail.policy_triggered}]：</strong> ${t.guardrail.reason}
+            <strong>路由规则 [${t.guardrail.policy_triggered}]：</strong> ${t.guardrail.reason}
           </div>
           <div class="actions">
             ${t.status === "PENDING_APPROVAL" ? `
-              <button class="btn-approve" onclick="decide(${idx}, true)">交易员核验并批准 (Approve)</button>
-              <button class="btn-reject" onclick="decide(${idx}, false)">驳回并挂起 (Reject)</button>
-            ` : `<span style="font-size:12px;color:#64748b;">当前状态已完成流转：<b>${t.status}</b></span>`}
+              <button class="btn-approve" onclick="decide(${idx}, true)">演示批准 (Approve)</button>
+              <button class="btn-reject" onclick="decide(${idx}, false)">演示驳回 (Reject)</button>
+            ` : `<span style="font-size:12px;color:#64748b;">当前演示状态：<b>${t.status}</b>（刷新页面恢复初始）</span>`}
           </div>
         </div>
       `).join("");
     }
 
     function decide(idx, approve) {
+      if (state.tickets[idx].status !== "PENDING_APPROVAL") return;
       state.tickets[idx].status = approve ? "APPROVED" : "REJECTED";
       render();
     }
 
     fetch("../evidence/workbench_snapshot.json")
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => { state = data; render(); })
+      .then(data => {
+        state = data;
+        dataSource = "evidence/workbench_snapshot.json";
+        render();
+      })
       .catch(() => render());
   </script>
 </body>

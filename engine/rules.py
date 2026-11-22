@@ -47,9 +47,9 @@ def audit_futures_roll() -> AuditAlert:
         alert_id="ALT-2026-001",
         category="POST_TRADE_RECONCILIATION",
         severity="HIGH",
-        title="期货换月账面虚增告警 (+120.00 元)",
+        title="期货换月账面差异 (+120.00 元)",
         summary=(
-            "回测/报表层将近远月合约直接拼接计算收益 280.00 元，但逐日盯市实际毛利仅 160.00 元"
+            "近远月合约直接拼接计算收益 280.00 元，逐日盯市实际毛利 160.00 元"
             "（扣费 12.00 元后净利 148.00 元），差额 120.00 元来自换月日 6 点跨期价差。"
         ),
         metrics={
@@ -92,10 +92,10 @@ def audit_market_making_inventory() -> AuditAlert:
         alert_id="ALT-2026-002",
         category="INTRADAY_RISK_EXPOSURE",
         severity="CRITICAL",
-        title="做市库存敞口超限与中价漂移亏损 (-3.10 元)",
+        title="做市库存与损益分解 (-3.10 元)",
         summary=(
-            "策略 4 笔成交捕获价差 +3.00 元，但单边下跌导致期末滞留 100 股多头库存，"
-            "中价漂移拖累 -5.80 元、手续费 -0.30 元，最终净亏 -3.10 元。"
+            "策略 4 笔成交捕获价差 +3.00 元，期末持有 100 股多头库存，"
+            "市场中价变动拖累 -5.80 元、手续费 -0.30 元，净损益 -3.10 元。"
         ),
         metrics={
             "spread_capture": spread_capture,
@@ -110,7 +110,7 @@ def audit_market_making_inventory() -> AuditAlert:
 
 
 def audit_cancel_race() -> AuditAlert:
-    """Detect in-flight fills during cancel race and compute implementation shortfall."""
+    """Detect in-flight fills during cancel race and compute exact position drift."""
     order_qty = 100
     filled_before_cancel = 40
     filled_during_cancel_race = 20
@@ -120,24 +120,26 @@ def audit_cancel_race() -> AuditAlert:
     position_drift = actual_filled_on_exchange - expected_filled_by_naive_client
 
     assert filled_before_cancel + filled_during_cancel_race + canceled_qty == order_qty
+    assert actual_filled_on_exchange == 60
     assert position_drift == 20
 
     return AuditAlert(
         alert_id="ALT-2026-003",
         category="EXECUTION_PROTOCOL",
         severity="HIGH",
-        title="撤单竞态引发仓位漂移 (+20 股飞行中成交)",
+        title="撤单竞态仓位差异 (+20 股漏记)",
         summary=(
-            "100 股买单撤单期间：40 股在发撤单前成交，20 股在撤单请求与确认返回之间成交，"
-            "40 股成功撤单。本地缓存仓位少计 20 股，执行差额（IS）达 70 bp。"
+            "100 股买单：40 股在发撤单前成交，20 股在撤单请求与确认返回之间成交，"
+            "40 股成功撤单。成交回报合计 60 股，本地缓存仅记 40 股，少记 20 股。"
         ),
         metrics={
             "order_qty": order_qty,
             "filled_before_cancel": filled_before_cancel,
             "in_flight_race_fill": filled_during_cancel_race,
             "canceled_qty": canceled_qty,
+            "exchange_filled_qty": actual_filled_on_exchange,
+            "local_recorded_qty": expected_filled_by_naive_client,
             "position_drift_shares": position_drift,
-            "implementation_shortfall_bp": 70,
         },
         recommended_action="SYNC_EXCHANGE_POSITION",
         requires_write_privilege=True,
@@ -165,10 +167,10 @@ def audit_pit_restatement() -> AuditAlert:
         alert_id="ALT-2026-004",
         category="DATA_GOVERNANCE_PIT",
         severity="MEDIUM",
-        title="PIT 财报修订时间穿越防线核验通过",
+        title="PIT 财报修订快照核验通过",
         summary=(
-            "指标于 04-10 初发 100、04-15 修订为 80。时间点快照查询在 09/11/16 日"
-            "严格返回 None -> 100 -> 80，阻断未来函数泄露。"
+            "指标于 04-10 初发 100、04-15 修订为 80。时间点查询在 09/11/16 日"
+            "严格返回 None -> 100 -> 80，未发生未来数据泄露。"
         ),
         metrics={
             "query_04_09": q_before,
