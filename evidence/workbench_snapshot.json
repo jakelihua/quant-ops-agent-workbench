@@ -1,0 +1,160 @@
+{
+  "schema_version": "1.0.0",
+  "data_provenance": "synthetic_deterministic",
+  "summary": {
+    "total_alerts": 4,
+    "guardrail_blocked_write_actions": 3,
+    "auto_archived_read_only": 1,
+    "autonomous_write_mutations": 0
+  },
+  "tickets": [
+    {
+      "ticket_id": "TKT-001",
+      "alert": {
+        "alert_id": "ALT-2026-001",
+        "category": "POST_TRADE_RECONCILIATION",
+        "severity": "HIGH",
+        "title": "期货换月账面虚增告警 (+120.00 元)",
+        "summary": "回测/报表层将近远月合约直接拼接计算收益 280.00 元，但逐日盯市实际毛利仅 160.00 元（扣费 12.00 元后净利 148.00 元），差额 120.00 元来自换月日 6 点跨期价差。",
+        "metrics": {
+          "naive_stitched_pnl": 280,
+          "actual_gross_pnl": 160,
+          "fees": 12,
+          "actual_net_pnl": 148,
+          "phantom_roll_pnl": 120,
+          "roll_gap_points": 6
+        },
+        "recommended_action": "ADJUST_RECON_LEDGER",
+        "requires_write_privilege": true
+      },
+      "runbook_id": "RB-FUT-101",
+      "compressed_context_tokens": 175,
+      "routing_confidence": 0.96,
+      "root_cause_analysis": "近远月主力合约切换时未按独立合约逐日盯市，跨期价差被误计为交易收益。",
+      "proposed_steps": [
+        "锁定换月日近远月结算价与跨期价差（roll_gap_points）",
+        "切换账本核算模式为逐合约独立持仓 + 逐日盯市（Mark-to-Market）",
+        "生成调整分录提交清算与风控复核，严禁自动覆盖历史成交库"
+      ],
+      "guardrail": {
+        "allowed_auto_execute": false,
+        "policy_triggered": "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE",
+        "reason": "动作 `ADJUST_RECON_LEDGER` 涉及资金/仓位/账本变更，金融护栏强制拦截，必须进入人工审批队列（HITL）。",
+        "required_state": "PENDING_APPROVAL"
+      },
+      "status": "PENDING_APPROVAL",
+      "human_reviewer": null,
+      "review_note": null
+    },
+    {
+      "ticket_id": "TKT-002",
+      "alert": {
+        "alert_id": "ALT-2026-002",
+        "category": "INTRADAY_RISK_EXPOSURE",
+        "severity": "CRITICAL",
+        "title": "做市库存敞口超限与中价漂移亏损 (-3.10 元)",
+        "summary": "策略 4 笔成交捕获价差 +3.00 元，但单边下跌导致期末滞留 100 股多头库存，中价漂移拖累 -5.80 元、手续费 -0.30 元，最终净亏 -3.10 元。",
+        "metrics": {
+          "spread_capture": 3.0,
+          "mid_drift_to_close": -5.8,
+          "fees": -0.3,
+          "end_inventory_shares": 100,
+          "net_pnl": -3.1
+        },
+        "recommended_action": "AUTO_HEDGE_INVENTORY",
+        "requires_write_privilege": true
+      },
+      "runbook_id": "RB-MM-204",
+      "compressed_context_tokens": 162,
+      "routing_confidence": 0.96,
+      "root_cause_analysis": "单边趋势行情引发逆向选择，做市买单被动吃满导致库存敞口超限，中价漂移吞噬价差收益。",
+      "proposed_steps": [
+        "拆分账目为 Spread Capture（价差捕获）与 Mid Drift（中价漂移）",
+        "检查当前库存敞口是否触发策略风控阈值",
+        "生成对冲或降仓建议单，交由值班交易员在控制台一键审批执行"
+      ],
+      "guardrail": {
+        "allowed_auto_execute": false,
+        "policy_triggered": "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE",
+        "reason": "动作 `AUTO_HEDGE_INVENTORY` 涉及资金/仓位/账本变更，金融护栏强制拦截，必须进入人工审批队列（HITL）。",
+        "required_state": "PENDING_APPROVAL"
+      },
+      "status": "PENDING_APPROVAL",
+      "human_reviewer": null,
+      "review_note": null
+    },
+    {
+      "ticket_id": "TKT-003",
+      "alert": {
+        "alert_id": "ALT-2026-003",
+        "category": "EXECUTION_PROTOCOL",
+        "severity": "HIGH",
+        "title": "撤单竞态引发仓位漂移 (+20 股飞行中成交)",
+        "summary": "100 股买单撤单期间：40 股在发撤单前成交，20 股在撤单请求与确认返回之间成交，40 股成功撤单。本地缓存仓位少计 20 股，执行差额（IS）达 70 bp。",
+        "metrics": {
+          "order_qty": 100,
+          "filled_before_cancel": 40,
+          "in_flight_race_fill": 20,
+          "canceled_qty": 40,
+          "position_drift_shares": 20,
+          "implementation_shortfall_bp": 70
+        },
+        "recommended_action": "SYNC_EXCHANGE_POSITION",
+        "requires_write_privilege": true
+      },
+      "runbook_id": "RB-EXEC-309",
+      "compressed_context_tokens": 183,
+      "routing_confidence": 0.96,
+      "root_cause_analysis": "撤单指令网络传输窗口内与交易所撮合引擎发生竞态，产生飞行中成交（In-Flight Fill）。",
+      "proposed_steps": [
+        "以交易所回报序列号（ExecID）为唯一真相源（Single Source of Truth）",
+        "执行日志幂等重放（Idempotent Replay），确保二次回放新增事件为 0",
+        "同步修正本地 OMS 仓位缓存并通知风控模块重算敞口"
+      ],
+      "guardrail": {
+        "allowed_auto_execute": false,
+        "policy_triggered": "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE",
+        "reason": "动作 `SYNC_EXCHANGE_POSITION` 涉及资金/仓位/账本变更，金融护栏强制拦截，必须进入人工审批队列（HITL）。",
+        "required_state": "PENDING_APPROVAL"
+      },
+      "status": "PENDING_APPROVAL",
+      "human_reviewer": null,
+      "review_note": null
+    },
+    {
+      "ticket_id": "TKT-004",
+      "alert": {
+        "alert_id": "ALT-2026-004",
+        "category": "DATA_GOVERNANCE_PIT",
+        "severity": "MEDIUM",
+        "title": "PIT 财报修订时间穿越防线核验通过",
+        "summary": "指标于 04-10 初发 100、04-15 修订为 80。时间点快照查询在 09/11/16 日严格返回 None -> 100 -> 80，阻断未来函数泄露。",
+        "metrics": {
+          "query_04_09": null,
+          "query_04_11": 100,
+          "query_04_16": 80,
+          "leakage_detected": false
+        },
+        "recommended_action": "LOG_AUDIT_PASS",
+        "requires_write_privilege": false
+      },
+      "runbook_id": "RB-DATA-402",
+      "compressed_context_tokens": 149,
+      "routing_confidence": 0.96,
+      "root_cause_analysis": "历史数据修订场景下的双时间戳（Effective Date / As-Of Date）隔离核验。",
+      "proposed_steps": [
+        "确认查询引擎严格按 as_of_date 过滤历史快照",
+        "归档本次合规核验记录至审计日志，无需人工介入写操作"
+      ],
+      "guardrail": {
+        "allowed_auto_execute": true,
+        "policy_triggered": "READ_ONLY_AUDIT_PASS",
+        "reason": "只读合规核验且置信度达标，允许自动归档审计记录。",
+        "required_state": "AUTO_ARCHIVED"
+      },
+      "status": "AUTO_ARCHIVED",
+      "human_reviewer": null,
+      "review_note": null
+    }
+  ]
+}

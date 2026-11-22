@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quant Ops Agent Workbench · 交易支持智能化审单台</title>
+  <style>
+    :root {
+      --bg: #f6f7f5;
+      --card: #ffffff;
+      --ink: #18221d;
+      --muted: #5c6b63;
+      --accent: #143628;
+      --border: #dfe5e1;
+      --crit: #b91c1c;
+      --high: #b45309;
+      --ok: #15803d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Noto Sans CJK SC", "PingFang SC", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 20px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    header h1 { margin: 0; font-size: 20px; letter-spacing: 0.3px; }
+    header .sub { font-size: 13px; opacity: 0.85; }
+    .badge-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pill {
+      background: rgba(255,255,255,0.14);
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    main { max-width: 1120px; margin: 24px auto; padding: 0 20px 48px; }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .kpi .label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .kpi .val { font-size: 26px; font-weight: 800; margin-top: 4px; color: var(--accent); }
+    .ticket {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    }
+    .ticket-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .tag {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .sev-CRITICAL { background: #fee2e2; color: var(--crit); }
+    .sev-HIGH { background: #fef3c7; color: var(--high); }
+    .sev-MEDIUM { background: #dcfce7; color: var(--ok); }
+    .status-PENDING_APPROVAL { background: #fef3c7; color: #92400e; }
+    .status-APPROVED { background: #dcfce7; color: #166534; }
+    .status-REJECTED { background: #fee2e2; color: #991b1b; }
+    .status-AUTO_ARCHIVED { background: #e0f2fe; color: #075985; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+    .panel {
+      background: #f9faf9;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+    .panel h4 { margin: 0 0 6px; font-size: 13px; color: var(--accent); }
+    .guardrail-box {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-left: 4px solid var(--high);
+      background: #fffbeb;
+      font-size: 13px;
+      border-radius: 0 6px 6px 0;
+    }
+    .guardrail-box.ok { border-left-color: var(--ok); background: #f0fdf4; }
+    .actions { margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button {
+      border: none;
+      border-radius: 7px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-approve { background: var(--accent); color: #fff; }
+    .btn-reject { background: #e5e7eb; color: #1f2937; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    code { background: #eef2ef; padding: 2px 5px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Quant Ops Agent Workbench · 交易支持智能化审单台</h1>
+      <div class="sub">Deterministic Audit Engine + Agent Harness + Financial Guardrails + Human-in-the-Loop (HITL)</div>
+    </div>
+    <div class="badge-bar">
+      <span class="pill">Autonomous Writes: 0</span>
+      <span class="pill">Guardrails: ACTIVE</span>
+      <span class="pill">Synthetic Deterministic Demo</span>
+    </div>
+  </header>
+  <main>
+    <div class="kpi-grid" id="kpis"></div>
+    <div id="tickets"></div>
+  </main>
+
+  <script>
+    const FALLBACK_SNAPSHOT = {
+      summary: { total_alerts: 4, guardrail_blocked_write_actions: 3, auto_archived_read_only: 1, autonomous_write_mutations: 0 },
+      tickets: [
+        {
+          ticket_id: "TKT-001",
+          status: "PENDING_APPROVAL",
+          runbook_id: "RB-FUT-101",
+          compressed_context_tokens: 138,
+          routing_confidence: 0.96,
+          root_cause_analysis: "近远月主力合约切换时未按独立合约逐日盯市，跨期价差被误计为交易收益。",
+          proposed_steps: ["锁定换月日近远月结算价与跨期价差（6 点）", "切换账本核算模式为逐合约独立持仓 + 逐日盯市", "生成调整分录提交清算与风控复核，严禁自动覆盖历史成交库"],
+          alert: { alert_id: "ALT-2026-001", severity: "HIGH", title: "期货换月账面虚增告警 (+120.00 元)", summary: "回测/报表层将近远月合约直接拼接计算收益 280.00 元，实际逐日毛利仅 160.00 元（扣费后 148.00 元），差额 120.00 元来自跨期价差。", recommended_action: "ADJUST_RECON_LEDGER" },
+          guardrail: { allowed_auto_execute: false, policy_triggered: "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE", reason: "动作 ADJUST_RECON_LEDGER 涉及资金/账本变更，金融护栏强制拦截，必须进入人工审批队列（HITL）。" }
+        },
+        {
+          ticket_id: "TKT-002",
+          status: "PENDING_APPROVAL",
+          runbook_id: "RB-MM-204",
+          compressed_context_tokens: 142,
+          routing_confidence: 0.96,
+          root_cause_analysis: "单边趋势行情引发逆向选择，做市买单被动吃满导致库存敞口超限，中价漂移吞噬价差收益。",
+          proposed_steps: ["拆分账目为 Spread Capture (+3.00) 与 Mid Drift (-5.80)", "检查当前 100 股库存敞口是否触发策略风控阈值", "生成对冲或降仓建议单，交由值班交易员一键审批执行"],
+          alert: { alert_id: "ALT-2026-002", severity: "CRITICAL", title: "做市库存敞口超限与中价漂移亏损 (-3.10 元)", summary: "4 笔成交捕获价差 +3.00 元，但期末滞留 100 股多头库存，中价漂移拖累 -5.80 元、手续费 -0.30 元，最终净亏 -3.10 元。", recommended_action: "AUTO_HEDGE_INVENTORY" },
+          guardrail: { allowed_auto_execute: false, policy_triggered: "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE", reason: "动作 AUTO_HEDGE_INVENTORY 涉及实盘仓位变更，金融护栏强制拦截，必须进入人工审批队列（HITL）。" }
+        },
+        {
+          ticket_id: "TKT-003",
+          status: "PENDING_APPROVAL",
+          runbook_id: "RB-EXEC-309",
+          compressed_context_tokens: 146,
+          routing_confidence: 0.96,
+          root_cause_analysis: "撤单指令网络传输窗口内与交易所撮合引擎发生竞态，产生飞行中成交（In-Flight Fill）。",
+          proposed_steps: ["以交易所回报序列号（ExecID）为唯一真相源", "执行日志幂等重放，确保二次回放新增事件为 0", "同步修正本地 OMS 仓位缓存并通知风控模块重算敞口"],
+          alert: { alert_id: "ALT-2026-003", severity: "HIGH", title: "撤单竞态引发仓位漂移 (+20 股飞行中成交)", summary: "100 股买单撤单期间：40 股发撤单前成交，20 股在撤单请求与确认之间成交，40 股撤单。执行差额 IS 达 70 bp。", recommended_action: "SYNC_EXCHANGE_POSITION" },
+          guardrail: { allowed_auto_execute: false, policy_triggered: "FIN_GUARDRAIL_NO_AUTONOMOUS_WRITE", reason: "动作 SYNC_EXCHANGE_POSITION 涉及本地仓位状态修改，金融护栏强制拦截，必须进入人工审批队列（HITL）。" }
+        },
+        {
+          ticket_id: "TKT-004",
+          status: "AUTO_ARCHIVED",
+          runbook_id: "RB-DATA-402",
+          compressed_context_tokens: 120,
+          routing_confidence: 0.96,
+          root_cause_analysis: "历史数据修订场景下的双时间戳（Effective Date / As-Of Date）隔离核验。",
+          proposed_steps: ["确认查询引擎严格按 as_of_date 过滤历史快照", "归档本次合规核验记录至审计日志，无需人工介入写操作"],
+          alert: { alert_id: "ALT-2026-004", severity: "MEDIUM", title: "PIT 财报修订时间穿越防线核验通过", summary: "04-10 初发 100、04-15 修订 80。时间点快照查询在 09/11/16 日严格返回 None -> 100 -> 80。", recommended_action: "LOG_AUDIT_PASS" },
+          guardrail: { allowed_auto_execute: true, policy_triggered: "READ_ONLY_AUDIT_PASS", reason: "只读合规核验且置信度达标，允许自动归档审计记录。" }
+        }
+      ]
+    };
+
+    let state = JSON.parse(JSON.stringify(FALLBACK_SNAPSHOT));
+
+    function render() {
+      const pendingCount = state.tickets.filter(t => t.status === "PENDING_APPROVAL").length;
+      const approvedCount = state.tickets.filter(t => t.status === "APPROVED").length;
+      document.getElementById("kpis").innerHTML = `
+        <div class="kpi"><div class="label">总审计工单</div><div class="val">${state.tickets.length}</div></div>
+        <div class="kpi"><div class="label">护栏拦截待审批 (HITL)</div><div class="val">${pendingCount}</div></div>
+        <div class="kpi"><div class="label">人工已批准流转</div><div class="val">${approvedCount}</div></div>
+        <div class="kpi"><div class="label">大模型越权写操作</div><div class="val">0</div></div>
+      `;
+      document.getElementById("tickets").innerHTML = state.tickets.map((t, idx) => `
+        <div class="ticket">
+          <div class="ticket-head">
+            <div>
+              <span class="tag sev-${t.alert.severity}">${t.alert.severity}</span>
+              <strong style="margin-left:8px;font-size:16px;">${t.ticket_id} · ${t.alert.title}</strong>
+            </div>
+            <span class="tag status-${t.status}">${t.status}</span>
+          </div>
+          <div style="font-size:14px;color:#334155;">${t.alert.summary}</div>
+          <div class="grid-2">
+            <div class="panel">
+              <h4>Agent Harness 归因分析（Runbook: <code>${t.runbook_id}</code>）</h4>
+              <div>${t.root_cause_analysis}</div>
+              <div style="margin-top:6px;color:#64748b;">上下文压缩: <b>${t.compressed_context_tokens} tokens</b> · 路由置信度: <b>${(t.routing_confidence*100).toFixed(0)}%</b></div>
+            </div>
+            <div class="panel">
+              <h4>建议处置 SOP（建议动作: <code>${t.alert.recommended_action}</code>）</h4>
+              <ol style="margin:0;padding-left:18px;">${t.proposed_steps.map(s => `<li>${s}</li>`).join("")}</ol>
+            </div>
+          </div>
+          <div class="guardrail-box ${t.guardrail.allowed_auto_execute ? "ok" : ""}">
+            <strong>金融护栏 [${t.guardrail.policy_triggered}]：</strong> ${t.guardrail.reason}
+          </div>
+          <div class="actions">
+            ${t.status === "PENDING_APPROVAL" ? `
+              <button class="btn-approve" onclick="decide(${idx}, true)">交易员核验并批准 (Approve)</button>
+              <button class="btn-reject" onclick="decide(${idx}, false)">驳回并挂起 (Reject)</button>
+            ` : `<span style="font-size:12px;color:#64748b;">当前状态已完成流转：<b>${t.status}</b></span>`}
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function decide(idx, approve) {
+      state.tickets[idx].status = approve ? "APPROVED" : "REJECTED";
+      render();
+    }
+
+    fetch("../evidence/workbench_snapshot.json")
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => { state = data; render(); })
+      .catch(() => render());
+  </script>
+</body>
+</html>

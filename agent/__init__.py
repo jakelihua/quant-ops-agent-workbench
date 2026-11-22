@@ -1,0 +1,1 @@
+"""Zero-dependency package marker."""
