@@ -76,7 +76,7 @@ A zero-dependency **trading support and post-trade reconciliation prototype** bu
 1. Deterministic Audit Rules (engine/rules.py)
    · Futures Roll: naive stitched 280 vs mark-to-market gross 160 (net 148 after 12 fees) -> 120 roll gap
    · Market Making Decomposition: +3.00 spread capture, -5.80 mid-price drift, -0.30 fees -> -3.10 net PnL (100-share end inventory)
-   · Cancel Race (ExecID Idempotent Replay): 100-share buy order (EX-1001 40 + EX-1002 20, 1 duplicate EX-1002 ignored) -> 60 exchange fills vs 40 local -> missing EX-1002 (+20 shares)
+   · Cancel Race (ExecID Idempotent Replay): 100-share buy order (EX-1001 40 + EX-1002 20, 1 duplicate EX-1002 ignored) -> 60 shares filled on the exchange vs 40 shares recorded locally -> missing EX-1002 (+20 shares)
    · Point-In-Time (PIT) Snapshot: 100 published Apr 10, restated to 80 Apr 15 -> queries on Apr 9/11/16 return None -> 100 -> 80
         │
         ▼
