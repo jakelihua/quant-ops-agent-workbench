@@ -1,10 +1,22 @@
-# Quant Ops Agent Workbench · 交易支持工单复核台（合成原型）
+# Quant Ops Agent Workbench
+
+**Trading Support & Post-Trade Reconciliation Prototype (Synthetic Deterministic Demo)**
+
+<p align="left">
+  <a href="#简体中文"><strong>简体中文</strong></a> ·
+  <a href="#english"><strong>English</strong></a>
+</p>
+
+---
+
+<a id="简体中文"></a>
+## 简体中文
 
 这是一个基于 Python 3 标准库与原生前端构建的**交易支持与盘后对账原型**，用于演示如何用确定性规则复算交易差异，并将涉及账本或仓位变更的建议路由至人工复核。
 
 > **边界声明**：本仓库所有行情与成交均采用显式合成数据，**未接入外部大模型 API 或实盘交易执行器**，不执行任何真实金融业务写入。
 
-## 核心模块
+### 核心模块
 
 ```text
 [4 组合成交易样例]
@@ -27,7 +39,7 @@
    · 在浏览器内存中演示工单的批准与驳回状态流转（刷新即恢复初始状态）
 ```
 
-## 快速复跑（无需安装第三方包）
+### 快速复跑（无需安装第三方包）
 
 ```bash
 git clone https://github.com/jakelihua/quant-ops-agent-workbench.git
@@ -37,7 +49,7 @@ cd quant-ops-agent-workbench
 python3 verify.py
 ```
 
-## 打开浏览器工单演示台
+### 打开浏览器工单演示台
 
 * **方式一（读取刚生成的快照）**：在仓库根目录启动本地静态服务后访问页面：
   ```bash
@@ -45,6 +57,57 @@ python3 verify.py
   # 浏览器打开 http://127.0.0.1:8000/web/index.html
   ```
 * **方式二（快速预览）**：直接双击打开 `web/index.html`，将自动回退读取页面内置的同口径样例数据。
+
+---
+
+<a id="english"></a>
+## English
+
+A zero-dependency **trading support and post-trade reconciliation prototype** built with Python 3 standard library and vanilla HTML/CSS/JS. It demonstrates how deterministic rules reconcile trading discrepancies and route proposed ledger or position mutations into a human-in-the-loop (HITL) review queue.
+
+> **Scope & Disclaimer**: All market and execution scenarios use explicit synthetic datasets. This prototype does **not** connect to any external LLM API or live trading execution gateway, and performs **zero** real financial write operations.
+
+### Architecture Overview
+
+```text
+[4 Synthetic Trading Scenarios]
+        │
+        ▼
+1. Deterministic Audit Rules (engine/rules.py)
+   · Futures Roll: naive stitched 280 vs mark-to-market gross 160 (net 148 after 12 fees) -> 120 roll gap
+   · Market Making Decomposition: +3.00 spread capture, -5.80 mid-price drift, -0.30 fees -> -3.10 net PnL (100-share end inventory)
+   · Cancel Race (ExecID Idempotent Replay): 100-share buy order (EX-1001 40 + EX-1002 20, 1 duplicate EX-1002 ignored) -> 60 exchange fills vs 40 local -> missing EX-1002 (+20 shares)
+   · Point-In-Time (PIT) Snapshot: 100 published Apr 10, restated to 80 Apr 15 -> queries on Apr 9/11/16 return None -> 100 -> 80
+        │
+        ▼
+2. Triage & Routing Prototype (agent/harness.py)
+   · Log deduplication, top-4 retention, and per-line truncation (240 chars max)
+   · Category-based preset Runbook lookup; unknown categories fall back to low confidence and escalate to human review
+   · Routes all 3 mutating recommendations to PENDING_APPROVAL; auto-archives only read-only PIT audit
+        │
+        ▼
+3. Browser Review Console (web/index.html)
+   · Client-side demonstration of Approve / Reject ticket state transitions (refresh resets state)
+```
+
+### Quickstart (Zero External Dependencies)
+
+```bash
+git clone https://github.com/jakelihua/quant-ops-agent-workbench.git
+cd quant-ops-agent-workbench
+
+# Run all 13 deterministic test cases and regenerate evidence/workbench_snapshot.json
+python3 verify.py
+```
+
+### Open the Browser Review Console
+
+* **Option 1 (Load newly generated snapshot)**: Start a local static server from the repo root:
+  ```bash
+  python3 -m http.server 8000 --bind 127.0.0.1
+  # Open http://127.0.0.1:8000/web/index.html
+  ```
+* **Option 2 (Instant preview)**: Double-click `web/index.html` directly to load the built-in matching fallback sample.
 
 ## License
 
